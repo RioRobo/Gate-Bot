@@ -1,0 +1,149 @@
+' =========================================================================
+'
+'   File....... Sonar_Navigation.BS2
+'   Purpose.... Use the sonar in combination with the servo
+'               motors to find and navigate towards objects.
+'   Author..... George Kudrayvtsev
+'
+'   {$STAMP BS2}
+'   {$PBASIC 2.5}
+'
+' =========================================================================
+' -----[ Program Description ]---------------------------------------------
+'
+' This program will use the Parallax PING))) sensor to determine the
+' location of objects, and move towards them using the servos.
+'
+'
+' -----[ I/O Definitions ]-------------------------------------------------
+Sonar           PIN      15
+R_Servo         PIN      12
+L_Servo         PIN      14
+Horn            PIN      0
+
+' -----[ Constants ]-------------------------------------------------------
+' This #select code will determine the proper constants for conversion
+' from micro-seconds to inches and centimeters
+#SELECT $STAMP
+  #CASE BS2, BS2E
+    Trigger     CON     5                       ' trigger pulse = 10 uS
+    Scale       CON     $200                    ' raw x 2.00 = uS
+  #CASE BS2SX, BS2P, BS2PX
+    Trigger     CON     13
+    Scale       CON     $0CD                    ' raw x 0.80 = uS
+  #CASE BS2PE
+    Trigger     CON     5
+    Scale       CON     $1E1                    ' raw x 1.88 = uS
+#ENDSELECT
+
+RawToIn         CON     889                     ' 1 / 73.746 (with **)
+RawToCm         CON     2257                    ' 1 / 29.034 (with **)
+IsHigh          CON     1                       ' for PULSOUT
+IsLow           CON     0
+
+' -----[ Variables ]-------------------------------------------------------
+raw_dist        VAR     Word                    ' raw measurement
+inches          VAR     Word
+cm              VAR     Word
+
+i               VAR     Word
+index           VAR     Byte
+rotation_count  VAR     Word
+start           VAR     Bit
+Objects         VAR     Word(7)
+
+' -----[ Program Code ]----------------------------------------------------
+Main:
+  i = 0
+  index = 0
+  rotation_count = 0
+  start = 0
+
+  FOR i = 0 TO 6 STEP 1
+    Objects(i) = 0
+  NEXT
+
+  FOR i = 0 TO 111 STEP 1
+    GOSUB Get_Sonar                             ' get sensor value
+    'GOSUB To_Inches
+
+    ' We constantly turn in a complete circle,
+    ' passively making readings about the location
+    ' of any and all objects within a foot of us
+    GOSUB TurnRight
+
+    IF(raw_dist < 1000 AND start = 0) THEN
+      GOSUB Start_Recording
+    ELSEIF(raw_dist < 1000 AND start = 1) THEN
+      rotation_count = rotation_count + 1
+    ELSEIF(raw_dist > 1000 AND start = 1) THEN
+      GOSUB Stop_Recording
+    ENDIF
+
+    DEBUG DEC i, CR
+  NEXT
+
+  FOR i = 1 TO 7 STEP 1
+    DEBUG "Object(", DEC i, "): ", DEC Objects(i-1), CR
+  NEXT
+
+  END
+
+' -----[ Subroutines ]-----------------------------------------------------
+' This subroutine triggers the PING))) sonar sensor and measures
+' the echo pulse.  The raw value from the sensor is converted to
+' microseconds based on the Stamp module in use.  This value is
+' divided by two to remove the return trip -- the result value is
+' the distance from the sensor to the target in microseconds.
+Get_Sonar:
+  Sonar = IsLow
+  PULSOUT Sonar, Trigger                        ' activate sensor
+  PULSIN  Sonar, IsHigh, raw_dist               ' measure echo pulse
+  raw_dist = raw_dist */ Scale                  ' convert to uS
+  raw_dist = raw_dist / 2                       ' remove return trip
+  RETURN
+
+To_Inches:
+  inches = raw_dist ** RawToIn
+  RETURN
+
+Start_Recording:
+  FREQOUT Horn, 100, 6000
+  start = 1
+  RETURN
+
+Stop_Recording:
+  IF(index < 7) THEN
+    FREQOUT Horn, 100, 4000
+    Objects(index) = rotation_count
+    rotation_count = 0
+    start = 0
+    index = index + 1
+  ELSE
+    index = 0
+  ENDIF
+  RETURN
+
+' Move the bot forward
+Forward:
+  PULSOUT L_Servo, 830
+  PULSOUT R_Servo, 660
+  RETURN
+
+' Move backwards
+Backward:
+  PULSOUT L_Servo, 670
+  PULSOUT R_Servo, 840
+  RETURN
+
+' Turn left
+TurnLeft:
+  PULSOUT L_Servo, 730
+  PULSOUT R_Servo, 650
+  RETURN
+
+' Turn right
+TurnRight:
+  PULSOUT L_Servo, 850
+  PULSOUT R_Servo, 770
+  RETURN
