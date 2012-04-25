@@ -1,0 +1,31 @@
+' {$STAMP BS2}
+' {$PBASIC 2.5}
+'
+' Author:
+' Description:
+' Date Created:
+'
+'----------[Variables]--------------------------------------------------------------
+counter    VAR    Word
+
+'----------[Main]-------------------------------------------------------------------
+Main:
+  GOSUB Pick_Up
+  GOSUB Drop_Off
+  END
+
+Pick_Up:
+  FOR counter = 1 TO 19
+    PULSOUT 14, 550
+    PULSOUT 15, 850
+    PAUSE 20
+  NEXT
+  return
+
+Drop_Off:
+  FOR counter = 1 TO 19
+    PULSOUT 14, 250
+    PULSOUT 15, 1250
+    PAUSE 20
+  NEXT
+  RETURN
