@@ -56,7 +56,7 @@ start           VAR     Bit
 
 ' Arrays to control distance and rotation counts for objects\
 OnOff           VAR     Bit(ARRAY_SIZE + 1)
-Objects         VAR     Byte(ARRAY_SIZE + 1)
+Objects         VAR     Byte(ARRAY_SIZE * 2)
 Distances       VAR     Byte(ARRAY_SIZE + 1)
 
 ' -----[ Program Code ]----------------------------------------------------
@@ -96,7 +96,7 @@ Main:
   NEXT
 
   DEBUG CLS
-  DEBUG DEC i, CR
+  DEBUG DEC i - 6, CR
 
   FOR i = 0 TO ARRAY_SIZE
     DEBUG DEC i, ": ", DEC OnOff(i), ": (", DEC Objects(i), ");(", DEC Distances(i), ")", CR
