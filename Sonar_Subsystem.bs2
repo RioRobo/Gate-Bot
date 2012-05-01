@@ -47,7 +47,7 @@ FULL_ROTATION   CON     187
 ' -----[ Variables ]-------------------------------------------------------
 ' Variables to monitor Sonar distance
 raw_dist        VAR     Word                    ' raw measurement
-inches          VAR     Byte
+centimeters     VAR     Word
 
 ' Variables to monitor array indices as well as a simple counter variable
 i               VAR     Byte
@@ -64,20 +64,27 @@ Main:
   index = 0
   start = 0
 
-  FOR i = 0 TO FULL_ROTATION STEP 1
+  DEBUG CLS
 
+  FOR i = 0 TO FULL_ROTATION STEP 1
     GOSUB Get_Sonar
+    GOSUB To_Centimeters
     GOSUB Turn_Right
 
-    IF(inches < 12) THEN
+    IF(index > ARRAY_SIZE) THEN
+      EXIT
+    ENDIF
+
+    IF(centimeters < 36) THEN
       IF(start = 0) THEN
         start = 1
         index = index + 1
         OnOff(index) = IsHigh
+        Distances(index) = centimeters
       ELSE
         Objects(index) = Objects(index) + 1
       ENDIF
-    ELSEIF(inches > 12) THEN
+    ELSEIF(centimeters > 36) THEN
       IF(start = 0) THEN
         Objects(index) = Objects(index) + 1
       ELSE
@@ -88,8 +95,12 @@ Main:
     ENDIF
   NEXT
 
+  DEBUG CLS
+  DEBUG DEC i, CR
+
   FOR i = 0 TO ARRAY_SIZE
-    DEBUG DEC i, ": ", 
+    DEBUG DEC i, ": ", DEC OnOff(i), ": (", DEC Objects(i), ");(", DEC Distances(i), ")", CR
+  NEXT
 
   END
 
@@ -107,8 +118,8 @@ Get_Sonar:
   raw_dist = raw_dist / 2                       ' remove return trip
   RETURN
 
-To_Inches:
-  inches = raw_dist ** RawToIn
+To_Centimeters:
+  centimeters = raw_dist ** RawToCm
   RETURN
 
 ' Move the bot forward
