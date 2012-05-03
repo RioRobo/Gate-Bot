@@ -21,7 +21,8 @@ R_Servo         PIN      12
 L_Servo         PIN      14
 Horn            PIN      0
 
-' -----[ Constants ]-------------------------------------------------------
+' -----[ Constants ]-------------------------
+' -----------------------------
 ' This #select code will determine the proper constants for conversion
 ' from micro-seconds to inches and centimeters
 #SELECT $STAMP
@@ -42,7 +43,7 @@ IsHigh          CON     1                       ' for PULSOUT
 IsLow           CON     0
 
 ARRAY_SIZE      CON     5
-FULL_ROTATION   CON     187
+FULL_ROTATION   CON     170
 
 ' -----[ Variables ]-------------------------------------------------------
 ' Variables to monitor Sonar distance
@@ -51,13 +52,16 @@ centimeters     VAR     Word
 
 ' Variables to monitor array indices as well as a simple counter variable
 i               VAR     Byte
+j               VAR     Byte
 index           VAR     Byte
+till_full       VAR     Byte
 start           VAR     Bit
+minimum         VAR     Byte
 
-' Arrays to control distance and rotation counts for objects\
+' Arrays to control distance and rotation counts for objects
 OnOff           VAR     Bit(ARRAY_SIZE + 1)
-Objects         VAR     Byte(ARRAY_SIZE * 2)
-Distances       VAR     Byte(ARRAY_SIZE + 1)
+Objects         VAR     Byte(ARRAY_SIZE + 1)
+Distances       VAR     Byte(ARRAY_SIZE * 2)
 
 ' -----[ Program Code ]----------------------------------------------------
 Main:
@@ -65,6 +69,7 @@ Main:
   start = 0
 
   DEBUG CLS
+  PAUSE 1000
 
   FOR i = 0 TO FULL_ROTATION STEP 1
     GOSUB Get_Sonar
@@ -95,11 +100,45 @@ Main:
     ENDIF
   NEXT
 
-  DEBUG CLS
-  DEBUG DEC i - 6, CR
+  till_full = FULL_ROTATION - (i + 1)
+
+  DEBUG "Turns done: ", DEC i, CR
 
   FOR i = 0 TO ARRAY_SIZE
     DEBUG DEC i, ": ", DEC OnOff(i), ": (", DEC Objects(i), ");(", DEC Distances(i), ")", CR
+  NEXT
+
+  FOR i = 0 TO ARRAY_SIZE STEP 1
+    IF(Distances(i) <> 0) THEN
+      minimum = Distances(i)
+      EXIT
+    ENDIF
+  NEXT
+
+  FOR i = i + 1 TO ARRAY_SIZE STEP 1
+    IF(Distances(i) <> 0 AND Distances(i) < minimum) THEN
+      minimum = Distances(i)
+      index = i
+    ENDIF
+  NEXT
+
+  DEBUG "More turns: ", DEC till_full, CR
+  FOR i = 0 TO till_full STEP 1
+    GOSUB Turn_Right
+    DEBUG DEC i, CR
+  NEXT
+
+  FOR i = 0 TO index - 1 STEP 1
+    DEBUG "About to turn ", DEC Objects(i), " times", CR
+    FOR j = 0 TO Objects(i)
+      GOSUB Turn_Right
+    NEXT
+  NEXT
+
+  DEBUG "Forward ", DEC minimum * 4, " times", CR
+
+  FOR i = 0 TO minimum * 4 STEP 1
+    GOSUB Forward
   NEXT
 
   END
