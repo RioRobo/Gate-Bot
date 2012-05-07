@@ -43,7 +43,7 @@ IsHigh          CON     1                       ' for PULSOUT
 IsLow           CON     0
 
 ARRAY_SIZE      CON     5
-FULL_ROTATION   CON     170
+FULL_ROTATION   CON     90
 
 ' -----[ Variables ]-------------------------------------------------------
 ' Variables to monitor Sonar distance
@@ -61,7 +61,7 @@ minimum         VAR     Byte
 ' Arrays to control distance and rotation counts for objects
 OnOff           VAR     Bit(ARRAY_SIZE + 1)
 Objects         VAR     Byte(ARRAY_SIZE + 1)
-Distances       VAR     Byte(ARRAY_SIZE * 2)
+Distances       VAR     Byte(ARRAY_SIZE + 1)
 
 ' -----[ Program Code ]----------------------------------------------------
 Main:
@@ -71,36 +71,44 @@ Main:
   DEBUG CLS
   PAUSE 1000
 
+  ' Make a full circle with the sonar tower
   FOR i = 0 TO FULL_ROTATION STEP 1
+    DEBUG DEC i, CR
+
+    ' Retrieve sonar distance, convert
+    ' it to centimeters, and rotate right
     GOSUB Get_Sonar
     GOSUB To_Centimeters
     GOSUB Turn_Right
 
+    ' Too many objects? Gtfo.
     IF(index > ARRAY_SIZE) THEN
       EXIT
     ENDIF
 
-    IF(centimeters < 36) THEN
-      IF(start = 0) THEN
-        start = 1
-        index = index + 1
-        OnOff(index) = IsHigh
-        Distances(index) = centimeters
-      ELSE
-        Objects(index) = Objects(index) + 1
+    IF(centimeters < 36) THEN                ' 36cm = 14in
+      IF(start = 0) THEN                     ' We have an acceptable object, but haven't started yet
+        start = 1                            ' Start
+        index = index + 1                    ' Next index in the array
+        OnOff(index) = IsHigh                ' On
+        Distances(index) = centimeters       ' Set the distance
+      ELSE                                   ' We're continuing on the same object
+        Objects(index) = Objects(index) + 1  ' Increase rotation count
       ENDIF
-    ELSEIF(centimeters > 36) THEN
-      IF(start = 0) THEN
-        Objects(index) = Objects(index) + 1
-      ELSE
-        start = 0
-        index = index + 1
-        OnOff(index) = IsLow
+    ELSEIF(centimeters > 36) THEN            ' No object
+      IF(start = 0) THEN                     ' We have no object, and haven't started
+        Objects(index) = Objects(index) + 1  ' Increase rotation count on the lack of object
+      ELSE                                   ' No object but we've had one
+        start = 0                            ' Stop
+        index = index + 1                    ' Next index in the array
+        OnOff(index) = IsLow                 ' Off
       ENDIF
     ENDIF
   NEXT
 
-  till_full = FULL_ROTATION - (i + 1)
+  ' How many turns are left until it becomes
+  ' a full rotation of the tower
+  till_full = (FULL_ROTATION + 1) - i
 
   DEBUG "Turns done: ", DEC i, CR
 
@@ -108,6 +116,7 @@ Main:
     DEBUG DEC i, ": ", DEC OnOff(i), ": (", DEC Objects(i), ");(", DEC Distances(i), ")", CR
   NEXT
 
+  ' Find the first non-zero distance
   FOR i = 0 TO ARRAY_SIZE STEP 1
     IF(Distances(i) <> 0) THEN
       minimum = Distances(i)
@@ -115,6 +124,8 @@ Main:
     ENDIF
   NEXT
 
+  ' Figure out the minimum distance in
+  ' the array
   FOR i = i + 1 TO ARRAY_SIZE STEP 1
     IF(Distances(i) <> 0 AND Distances(i) < minimum) THEN
       minimum = Distances(i)
@@ -122,23 +133,34 @@ Main:
     ENDIF
   NEXT
 
+  ' Turn so we make a complete rotation
+  ' When in the complete robot, this part will
+  ' be on the actual robot navigation, not
+  ' the sonar tower rotation
   DEBUG "More turns: ", DEC till_full, CR
   FOR i = 0 TO till_full STEP 1
     GOSUB Turn_Right
-    DEBUG DEC i, CR
+    PAUSE 20
   NEXT
 
+  END
+
+  ' Count the total amount of rotations until
+  ' that minimum distance is reached.
   FOR i = 0 TO index - 1 STEP 1
     DEBUG "About to turn ", DEC Objects(i), " times", CR
     FOR j = 0 TO Objects(i)
       GOSUB Turn_Right
+      PAUSE 20
     NEXT
   NEXT
 
   DEBUG "Forward ", DEC minimum * 4, " times", CR
 
+  ' Go forward toward that object
   FOR i = 0 TO minimum * 4 STEP 1
     GOSUB Forward
+    PAUSE 20
   NEXT
 
   END
