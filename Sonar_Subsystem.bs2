@@ -43,7 +43,7 @@ IsHigh          CON     1                       ' for PULSOUT
 IsLow           CON     0
 
 ARRAY_SIZE      CON     5
-FULL_ROTATION   CON     90
+FULL_ROTATION   CON     114
 
 ' -----[ Variables ]-------------------------------------------------------
 ' Variables to monitor Sonar distance
@@ -52,9 +52,8 @@ centimeters     VAR     Word
 
 ' Variables to monitor array indices as well as a simple counter variable
 i               VAR     Byte
-j               VAR     Byte
+j               VAR     Nib
 index           VAR     Byte
-till_full       VAR     Byte
 start           VAR     Bit
 minimum         VAR     Byte
 
@@ -65,6 +64,64 @@ Distances       VAR     Byte(ARRAY_SIZE + 1)
 
 ' -----[ Program Code ]----------------------------------------------------
 Main:
+  GOSUB Sonar
+
+  DEBUG "Turns done: ", DEC i, CR
+
+  FOR i = 0 TO ARRAY_SIZE
+    DEBUG DEC i, ": ", DEC OnOff(i), ": (", DEC Objects(i), ");(", DEC Distances(i), ")", CR
+  NEXT
+
+  ' Find the first non-zero distance
+  FOR i = 0 TO ARRAY_SIZE STEP 1
+    IF(Distances(i) <> 0) THEN
+      minimum = Distances(i)
+      EXIT
+    ENDIF
+  NEXT
+
+  ' Figure out the minimum distance in
+  ' the array
+  FOR i = i + 1 TO ARRAY_SIZE STEP 1
+    IF(Distances(i) <> 0 AND Distances(i) < minimum) THEN
+      minimum = Distances(i)
+      index = i
+    ENDIF
+  NEXT
+
+  ' Turn so we make a complete rotation
+  ' When in the complete robot, this part will
+  ' be on the actual robot navigation, not
+  ' the sonar tower rotation
+  DEBUG "More turns: ", DEC (FULL_ROTATION - i), CR
+  FOR i = 0 TO (FULL_ROTATION - i) STEP 1
+    GOSUB Turn_Right
+    PAUSE 20
+  NEXT
+
+  END
+
+  ' Count the total amount of rotations until
+  ' that minimum distance is reached.
+  FOR i = 0 TO index - 1 STEP 1
+    DEBUG "About to turn ", DEC Objects(i), " times", CR
+    FOR j = 0 TO Objects(i)
+      GOSUB Turn_Right
+      PAUSE 20
+    NEXT
+  NEXT
+
+  DEBUG "Forward ", DEC minimum * 4, " times", CR
+
+  ' Go forward toward that object
+  FOR i = 0 TO minimum * 4 STEP 1
+    GOSUB Forward
+    PAUSE 20
+  NEXT
+
+  END
+
+Sonar:
   index = 0
   start = 0
 
@@ -105,65 +162,7 @@ Main:
       ENDIF
     ENDIF
   NEXT
-
-  ' How many turns are left until it becomes
-  ' a full rotation of the tower
-  till_full = (FULL_ROTATION + 1) - i
-
-  DEBUG "Turns done: ", DEC i, CR
-
-  FOR i = 0 TO ARRAY_SIZE
-    DEBUG DEC i, ": ", DEC OnOff(i), ": (", DEC Objects(i), ");(", DEC Distances(i), ")", CR
-  NEXT
-
-  ' Find the first non-zero distance
-  FOR i = 0 TO ARRAY_SIZE STEP 1
-    IF(Distances(i) <> 0) THEN
-      minimum = Distances(i)
-      EXIT
-    ENDIF
-  NEXT
-
-  ' Figure out the minimum distance in
-  ' the array
-  FOR i = i + 1 TO ARRAY_SIZE STEP 1
-    IF(Distances(i) <> 0 AND Distances(i) < minimum) THEN
-      minimum = Distances(i)
-      index = i
-    ENDIF
-  NEXT
-
-  ' Turn so we make a complete rotation
-  ' When in the complete robot, this part will
-  ' be on the actual robot navigation, not
-  ' the sonar tower rotation
-  DEBUG "More turns: ", DEC till_full, CR
-  FOR i = 0 TO till_full STEP 1
-    GOSUB Turn_Right
-    PAUSE 20
-  NEXT
-
-  END
-
-  ' Count the total amount of rotations until
-  ' that minimum distance is reached.
-  FOR i = 0 TO index - 1 STEP 1
-    DEBUG "About to turn ", DEC Objects(i), " times", CR
-    FOR j = 0 TO Objects(i)
-      GOSUB Turn_Right
-      PAUSE 20
-    NEXT
-  NEXT
-
-  DEBUG "Forward ", DEC minimum * 4, " times", CR
-
-  ' Go forward toward that object
-  FOR i = 0 TO minimum * 4 STEP 1
-    GOSUB Forward
-    PAUSE 20
-  NEXT
-
-  END
+  RETURN
 
 ' -----[ Subroutines ]-----------------------------------------------------
 ' This subroutine triggers the PING))) sonar sensor and measures
