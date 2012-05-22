@@ -1,0 +1,207 @@
+' =========================================================================
+'
+'   File....... Sonar_Navigation.BS2
+'   Purpose.... Use the sonar in combination with the servo
+'               motors to find and navigate towards objects.
+'   Author..... George Kudrayvtsev
+'
+'   {$STAMP BS2}
+'   {$PBASIC 2.5}
+'
+' =========================================================================
+' -----[ Program Description ]---------------------------------------------
+'
+' This program will use the Parallax PING))) sensor to determine the
+' location of objects, and move towards them using the servos.
+'
+'
+' -----[ I/O Definitions ]-------------------------------------------------
+Sonar           PIN      15
+R_Servo         PIN      12
+L_Servo         PIN      14
+Horn            PIN      0
+
+' -----[ Constants ]-------------------------
+' -----------------------------
+' This #select code will determine the proper constants for conversion
+' from micro-seconds to inches and centimeters
+#SELECT $STAMP
+  #CASE BS2, BS2E
+    Trigger     CON     5                       ' trigger pulse = 10 uS
+    Scale       CON     $200                    ' raw x 2.00 = uS
+  #CASE BS2SX, BS2P, BS2PX
+    Trigger     CON     13
+    Scale       CON     $0CD                    ' raw x 0.80 = uS
+  #CASE BS2PE
+    Trigger     CON     5
+    Scale       CON     $1E1                    ' raw x 1.88 = uS
+#ENDSELECT
+
+RawToIn         CON     889                     ' 1 / 73.746 (with **)
+RawToCm         CON     2257                    ' 1 / 29.034 (with **)
+IsHigh          CON     1                       ' for PULSOUT
+IsLow           CON     0
+
+ARRAY_SIZE      CON     5
+FULL_ROTATION   CON     114
+
+' -----[ Variables ]-------------------------------------------------------
+' Variables to monitor Sonar distance
+raw_dist        VAR     Word                    ' raw measurement
+centimeters     VAR     Word
+
+' Variables to monitor array indices as well as a simple counter variable
+i               VAR     Byte
+j               VAR     Nib
+index           VAR     Byte
+start           VAR     Bit
+minimum         VAR     Byte
+
+' Arrays to control distance and rotation counts for objects
+OnOff           VAR     Bit(ARRAY_SIZE + 1)
+Objects         VAR     Byte(ARRAY_SIZE + 1)
+Distances       VAR     Byte(ARRAY_SIZE + 1)
+
+' -----[ Program Code ]----------------------------------------------------
+Main:
+  GOSUB Sonar
+
+  DEBUG "Turns done: ", DEC i, CR
+
+  FOR i = 0 TO ARRAY_SIZE
+    DEBUG DEC i, ": ", DEC OnOff(i), ": (", DEC Objects(i), ");(", DEC Distances(i), ")", CR
+  NEXT
+
+  ' Find the first non-zero distance
+  FOR i = 0 TO ARRAY_SIZE STEP 1
+    IF(Distances(i) <> 0) THEN
+      minimum = Distances(i)
+      EXIT
+    ENDIF
+  NEXT
+
+  ' Figure out the minimum distance in
+  ' the array
+  FOR i = i + 1 TO ARRAY_SIZE STEP 1
+    IF(Distances(i) <> 0 AND Distances(i) < minimum) THEN
+      minimum = Distances(i)
+      index = i
+    ENDIF
+  NEXT
+
+  ' Turn so we make a complete rotation
+  ' When in the complete robot, this part will
+  ' be on the actual robot navigation, not
+  ' the sonar tower rotation
+  DEBUG "More turns: ", DEC (FULL_ROTATION - i), CR
+  FOR i = 0 TO (FULL_ROTATION - i) STEP 1
+    GOSUB Turn_Right
+    PAUSE 20
+  NEXT
+
+  END
+
+  ' Count the total amount of rotations until
+  ' that minimum distance is reached.
+  FOR i = 0 TO index - 1 STEP 1
+    DEBUG "About to turn ", DEC Objects(i), " times", CR
+    FOR j = 0 TO Objects(i)
+      GOSUB Turn_Right
+      PAUSE 20
+    NEXT
+  NEXT
+
+  DEBUG "Forward ", DEC minimum * 4, " times", CR
+
+  ' Go forward toward that object
+  FOR i = 0 TO minimum * 4 STEP 1
+    GOSUB Forward
+    PAUSE 20
+  NEXT
+
+  END
+
+Sonar:
+  index = 0
+  start = 0
+
+  DEBUG CLS
+  PAUSE 1000
+
+  ' Make a full circle with the sonar tower
+  FOR i = 0 TO FULL_ROTATION STEP 1
+    DEBUG DEC i, CR
+
+    ' Retrieve sonar distance, convert
+    ' it to centimeters, and rotate right
+    GOSUB Get_Sonar
+    GOSUB To_Centimeters
+    GOSUB Turn_Right
+
+    ' Too many objects? Gtfo.
+    IF(index > ARRAY_SIZE) THEN
+      EXIT
+    ENDIF
+
+    IF(centimeters < 36) THEN                ' 36cm = 14in
+      IF(start = 0) THEN                     ' We have an acceptable object, but haven't started yet
+        start = 1                            ' Start
+        index = index + 1                    ' Next index in the array
+        OnOff(index) = IsHigh                ' On
+        Distances(index) = centimeters       ' Set the distance
+      ELSE                                   ' We're continuing on the same object
+        Objects(index) = Objects(index) + 1  ' Increase rotation count
+      ENDIF
+    ELSEIF(centimeters > 36) THEN            ' No object
+      IF(start = 0) THEN                     ' We have no object, and haven't started
+        Objects(index) = Objects(index) + 1  ' Increase rotation count on the lack of object
+      ELSE                                   ' No object but we've had one
+        start = 0                            ' Stop
+        index = index + 1                    ' Next index in the array
+        OnOff(index) = IsLow                 ' Off
+      ENDIF
+    ENDIF
+  NEXT
+  RETURN
+
+' -----[ Subroutines ]-----------------------------------------------------
+' This subroutine triggers the PING))) sonar sensor and measures
+' the echo pulse.  The raw value from the sensor is converted to
+' microseconds based on the Stamp module in use.  This value is
+' divided by two to remove the return trip -- the result value is
+' the distance from the sensor to the target in microseconds.
+Get_Sonar:
+  Sonar = IsLow
+  PULSOUT Sonar, Trigger                        ' activate sensor
+  PULSIN  Sonar, IsHigh, raw_dist               ' measure echo pulse
+  raw_dist = raw_dist */ Scale                  ' convert to uS
+  raw_dist = raw_dist / 2                       ' remove return trip
+  RETURN
+
+To_Centimeters:
+  centimeters = raw_dist ** RawToCm
+  RETURN
+
+' Move the bot forward
+Forward:
+  PULSOUT L_Servo, 830
+  PULSOUT R_Servo, 660
+  RETURN
+
+' Move backwards
+Backward:
+  PULSOUT L_Servo, 670
+  PULSOUT R_Servo, 840
+  RETURN
+
+' Turn left
+Turn_Left:
+  PULSOUT L_Servo, 730
+  PULSOUT R_Servo, 650
+  RETURN
+
+' Turn right
+Turn_Right:
+  PULSOUT L_Servo, 850
+  PULSOUT R_Servo, 770
+  RETURN
