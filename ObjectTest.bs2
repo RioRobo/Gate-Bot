@@ -1,0 +1,95 @@
+' {$STAMP BS2}
+' {$PBASIC 2.5}
+
+' -----[ I/O Definitions ]-------------------------------------------------
+Sonar           PIN      15
+R_Servo         PIN      12
+L_Servo         PIN      14
+Horn            PIN      0
+
+' -----[ Constants ]-------------------------
+' -----------------------------
+' This #select code will determine the proper constants for conversion
+' from micro-seconds to inches and centimeters
+#SELECT $STAMP
+  #CASE BS2, BS2E
+    Trigger     CON     5                       ' trigger pulse = 10 uS
+    Scale       CON     $200                    ' raw x 2.00 = uS
+  #CASE BS2SX, BS2P, BS2PX
+    Trigger     CON     13
+    Scale       CON     $0CD                    ' raw x 0.80 = uS
+  #CASE BS2PE
+    Trigger     CON     5
+    Scale       CON     $1E1                    ' raw x 1.88 = uS
+#ENDSELECT
+
+RawToIn         CON     889                     ' 1 / 73.746 (with **)
+RawToCm         CON     2257                    ' 1 / 29.034 (with **)
+IsHigh          CON     1                       ' for PULSOUT
+IsLow           CON     0
+
+ARRAY_SIZE      CON     5
+FULL_ROTATION   CON     114
+
+centimeters   VAR   Word
+raw_dist      VAR   Word
+
+i             VAR   Byte
+start         VAR   Bit
+
+Object        VAR   Byte
+Distance      VAR   Byte
+
+Do_Sonar:
+  start = 0
+
+  DEBUG CLS
+  PAUSE 1000
+
+  ' Make a full circle with the sonar tower
+  FOR i = 0 TO FULL_ROTATION STEP 1
+    'DEBUG DEC i, CR
+
+    ' Retrieve sonar distance, convert
+    ' it to centimeters, and rotate right
+    GOSUB Get_Sonar
+    GOSUB To_Centimeters
+    GOSUB Turn_Right
+
+    IF(centimeters < 36) THEN
+      IF(start = 0) THEN
+        start = 1
+      ELSE
+        Object = Object + 1
+        Distance = centimeters
+      ENDIF
+    ELSE
+      IF(start = 1) THEN
+        start = 0
+      ENDIF
+    ENDIF
+  NEXT
+
+  DEBUG DEC i, CR
+  DEBUG DEC Object, CR
+  DEBUG DEC Distance, CR
+
+  END
+
+Get_Sonar:
+  Sonar = IsLow
+  PULSOUT Sonar, Trigger                        ' activate sensor
+  PULSIN  Sonar, IsHigh, raw_dist               ' measure echo pulse
+  raw_dist = raw_dist */ Scale                  ' convert to uS
+  raw_dist = raw_dist / 2                       ' remove return trip
+  RETURN
+
+To_Centimeters:
+  centimeters = raw_dist ** RawToCm
+  RETURN
+
+' Turn right
+Turn_Right:
+  PULSOUT L_Servo, 850
+  PULSOUT R_Servo, 770
+  RETURN
